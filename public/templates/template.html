@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	{{template "head" .}}
+</head>
+<body>
+<div class="center">
+	<div class="container">
+		<h1>osu!acc</h1> by <a href="https://atilo.sh" target="_blank" rel="noopener">atilo</a>
+	</div>
+	<div class="action-container">
+		<div class="tab-select">
+			<div class="button-tab button-tab-left {{if .Accuracy}} default {{end}}" tab-target="0">
+				Accuracy
+				<span class="underline"></span>
+			</div>
+			<div class="button-tab button-tab-right {{if not .Accuracy}} default {{end}}" tab-target="1">
+				Impact
+				<span class="underline"></span>
+			</div>
+		</div>
+		<form method="GET" action="/acc" tab="0">
+			<input type="text" name="user" placeholder="Username" value="{{.User}}" aria-label="Username"/>
+			{{template "modeselect" .SelectedMode}}
+			<button type="submit">Submit</button>
+		</form>
+		<form method="GET" action="/impact" tab="1">
+			<input type="text" name="user" placeholder="Username" value="{{.User}}" aria-label="Username"/>
+			<input type="text" name="map_pp" placeholder="pp" value="{{.ImpactPP}}" aria-label="pp"/>
+			<input type="text" name="acc" placeholder="Accuracy" value="{{.ImpactAcc}}" aria-label="Accuracy"/>
+			{{template "modeselect" .SelectedMode}}
+			<button type="submit">Submit</button>
+		</form>
+	</div>
+	{{if not (eq .Error "") }}
+		<div class="container">
+			{{.Error}}
+		</div>
+	{{else}}
+		{{if .Accuracy}}
+			{{range .AccPlays}}
+				{{template "play" .}}
+			{{end}}
+		{{else}}
+			{{template "impact" .ImpactPlay}}
+		{{end}}
+	{{end}}
+
+	{{template "description" .}}
+</div>
+</body>
+
+<script src="/s/main.js"></script>
+
+</html>

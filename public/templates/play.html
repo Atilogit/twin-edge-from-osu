@@ -1,0 +1,25 @@
+{{define "play"}}
+<div class="play-detail">
+	<div class="play-detail-group-top">
+		<div class="play-detail-detail">
+			<a target="_blank" rel="noreferrer"
+				href="https://osu.ppy.sh/beatmaps/{{.Beatmap.ID}}?mode={{.Beatmap.Mode}}" class="play-detail-title">
+				{{.Beatmapset.Title}}
+				<small class="play-detail-artist">by {{.Beatmapset.Artist}}</small></a>
+			<div class="play-detail-beatmap-and-time"><span class="play-detail-beatmap">{{.Beatmap.Version}}</span>
+			</div>
+		</div>
+	</div>
+	<div class="play-detail-group-bottom">
+		<div class="play-detail-score-detail">
+			<div class="play-detail-score-detail-top-right">
+				<div class="play-detail-accuracy-and-weighted-pp"><span class="play-detail-accuracy">
+						{{fmtpc .Accuracy}}%</span><span class="play-detail-weighted-pp">({{fmtpc .AccDelta}}%)</span>
+				</div>
+				<div class="play-detail-pp-weight">weighted {{fmtpc .Weight.Raw}}%</div>
+			</div>
+		</div>
+		<div class="play-detail-pp"><span>{{round .Pp}}<span class="play-detail-pp-unit">pp</span></span></div>
+	</div>
+</div>
+{{end}}
