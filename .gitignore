@@ -1,0 +1,3 @@
+/target
+!/public/pkg/*.js
+!/public/pkg/*.wasm
