@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, fs, path::Path};
+mod download;
+
+pub use download::*;
+
+use std::{collections::BTreeMap, fmt::Debug, fs, path::Path};
 
 use anyhow::{anyhow, Result};
 use image::DynamicImage;
@@ -8,6 +12,15 @@ pub struct Map {
     pub data: Beatmap,
     pub audio: Vec<u8>,
     pub thumb: DynamicImage,
+}
+
+impl Debug for Map {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Map")
+            .field("audio", &self.audio)
+            .field("thumb", &self.thumb)
+            .finish()
+    }
 }
 
 impl Map {
