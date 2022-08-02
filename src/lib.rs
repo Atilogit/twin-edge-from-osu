@@ -32,6 +32,7 @@ pub async fn convert_url() {
 
     if let Ok(url) = url {
         log::info!("Converting url {url}");
+        show_message(&format!("Converting url {url}"));
         log_discord(&format!("Converting url {url}")).await.unwrap();
         if let Some(domain) = url.domain() {
             if domain == "osu.ppy.sh" && url.path().starts_with("/beatmapsets/") {
@@ -51,6 +52,7 @@ pub async fn convert_url() {
                 if let Some(map_id) = map_id {
                     log::trace!("Difficulty {map_id}");
 
+                    show_message("Downloading...");
                     let map_file = osu::download(set_id).await;
                     if let Ok(map_file) = map_file {
                         let diff = map_file
@@ -58,8 +60,10 @@ pub async fn convert_url() {
                             .find(|m| m.data.metadata.beatmap_id == map_id as i32);
                         if let Some(diff) = diff {
                             log::trace!("Converting...");
+                            show_message("Converting...");
                             let te_map = convert::convert(diff);
                             log::trace!("Generating zip...");
+                            show_message("Generating zip...");
                             let zip = te_map.as_zip().unwrap();
                             log::trace!("Saving...");
                             download_file(
@@ -72,6 +76,7 @@ pub async fn convert_url() {
                                 &zip,
                             );
                             log::trace!("Done");
+                            hide_error();
                             log_discord(&format!("Converted {map_id}")).await.unwrap();
                         } else {
                             panic_with("Could not find difficulty").await;
@@ -126,6 +131,18 @@ fn hide_error() {
                 .unwrap_or_else(|_| panic!("Error clearing error"));
         })
         .unwrap_or_else(|| panic!("Error clearing error"));
+}
+
+fn show_message(text: &str) {
+    web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.get_element_by_id("error-container"))
+        .map(|e| {
+            e.set_text_content(Some(text));
+            e.set_attribute("style", "")
+                .unwrap_or_else(|_| panic!("Error displaying text: {text}"));
+        })
+        .unwrap_or_else(|| panic!("Error displaying text: {text}"));
 }
 
 fn download_file(name: &str, content: &[u8]) {
