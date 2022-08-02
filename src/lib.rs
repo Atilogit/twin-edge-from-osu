@@ -1,10 +1,11 @@
+mod convert;
 mod osu;
 mod te;
 
 use std::str::FromStr;
 
 use wasm_bindgen::{prelude::*, JsCast};
-use web_sys::HtmlInputElement;
+use web_sys::{HtmlElement, HtmlInputElement};
 
 #[wasm_bindgen]
 pub fn run() {
@@ -28,7 +29,7 @@ pub async fn convert_url() {
     let url = url::Url::from_str(&url_str);
 
     if let Ok(url) = url {
-        log::trace!("Converting url {url:?}");
+        log::trace!("Converting url {url}");
         if let Some(domain) = url.domain() {
             if domain == "osu.ppy.sh" && url.path().starts_with("/beatmapsets/") {
                 let set_id: u64 = url
@@ -49,6 +50,28 @@ pub async fn convert_url() {
 
                     let map_file = osu::download(set_id).await;
                     if let Ok(map_file) = map_file {
+                        let diff = map_file
+                            .into_iter()
+                            .find(|m| m.data.metadata.beatmap_id == map_id as i32);
+                        if let Some(diff) = diff {
+                            log::trace!("Converting...");
+                            let te_map = convert::convert(diff);
+                            log::trace!("Generating zip...");
+                            let zip = te_map.as_zip().unwrap();
+                            log::trace!("Saving...");
+                            download_file(
+                                &format!(
+                                    "{} {} ({}).zip",
+                                    te_map.data.artist,
+                                    te_map.data.display_name,
+                                    te_map.data.mapper_name
+                                ),
+                                &zip,
+                            );
+                            log::trace!("Done");
+                        } else {
+                            panic_with("Could not find difficulty")
+                        }
                     } else {
                         log::trace!("{map_file:?}");
                         panic_with("Could not download map file")
@@ -99,4 +122,21 @@ fn hide_error() {
                 .unwrap_or_else(|_| panic!("Error clearing error"));
         })
         .unwrap_or_else(|| panic!("Error clearing error"));
+}
+
+fn download_file(name: &str, content: &[u8]) {
+    web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.create_element("a").ok())
+        .and_then(|e| {
+            e.set_attribute("download", name).ok()?;
+            e.set_attribute(
+                "href",
+                &("data:application/octet-stream;base64,".to_owned() + &base64::encode(content)),
+            )
+            .ok()?;
+            e.dyn_into::<HtmlElement>().ok()?.click();
+            Some(())
+        })
+        .expect("Error saving file")
 }

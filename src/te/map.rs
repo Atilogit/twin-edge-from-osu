@@ -1,4 +1,8 @@
-use std::{env, fs, path::Path};
+use std::{
+    env, fs,
+    io::{Cursor, Write},
+    path::Path,
+};
 
 use anyhow::{anyhow, Result};
 
@@ -208,5 +212,26 @@ impl Map {
         )?;
 
         Ok(())
+    }
+
+    pub fn as_zip(&self) -> Result<Vec<u8>> {
+        let mut cursor = Cursor::new(Vec::new());
+        {
+            let mut writer = zip::ZipWriter::new(&mut cursor);
+            let options = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+
+            writer.start_file(&self.data.song_file_name, options)?;
+            writer.write_all(serde_json::to_string_pretty(&self.data)?.as_bytes())?;
+            writer.start_file(&self.data.audio_file_name, options)?;
+            writer.write_all(&self.audio)?;
+            writer.start_file(&self.data.thumbnail_file_name, options)?;
+            let mut img_cursor = Cursor::new(Vec::new());
+            self.thumb.write_to(&mut img_cursor, ImageFormat::Png)?;
+            writer.write_all(&img_cursor.into_inner())?;
+
+            writer.finish()?;
+        }
+        Ok(cursor.into_inner())
     }
 }

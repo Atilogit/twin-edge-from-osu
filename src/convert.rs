@@ -1,13 +1,9 @@
 use osuparse::HitObject;
 use te::TimingPoint;
 
-fn main() {
-    let osu_map = osu::Map::read(
-        "D:\\OsuMaps\\476695 Aimer with chelly (EGOIST) - ninelie (REDSHiFT x Vesuvia remix) [no video]\\Aimer with chelly (EGOIST) - ninelie (REDSHiFT x Vesuvia remix) (ProfessionalBox) [Daydream].osu",
-        // "D:\\OsuMaps\\1734712 HOYO-MiX - Fantasy Note\\HOYO-MiX - Fantasy Note (Esutarosa) [Rosemary].osu",
-        // "D:\\OsuMaps\\1296282 Memme - Tantanmen\\Memme - Tantanmen (Down) [Extra].osu",
-    )
-    .unwrap();
+use crate::{osu, te};
+
+pub fn convert(osu_map: osu::Map) -> te::Map {
     let bpm = osu_map.find_most_used_bpm();
 
     let slider_limit = 0.5;
@@ -149,5 +145,5 @@ fn main() {
         audio: osu_map.audio,
         thumb,
     };
-    te_map.save().unwrap();
+    te_map
 }
