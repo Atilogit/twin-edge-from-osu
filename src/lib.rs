@@ -4,8 +4,10 @@ mod te;
 
 use std::str::FromStr;
 
+use anyhow::anyhow;
 use wasm_bindgen::{prelude::*, JsCast};
-use web_sys::{HtmlElement, HtmlInputElement};
+use wasm_bindgen_futures::JsFuture;
+use web_sys::{HtmlElement, HtmlInputElement, Request, RequestInit};
 
 #[wasm_bindgen]
 pub fn run() {
@@ -29,7 +31,8 @@ pub async fn convert_url() {
     let url = url::Url::from_str(&url_str);
 
     if let Ok(url) = url {
-        log::trace!("Converting url {url}");
+        log::info!("Converting url {url}");
+        log_discord(&format!("Converting url {url}")).await.unwrap();
         if let Some(domain) = url.domain() {
             if domain == "osu.ppy.sh" && url.path().starts_with("/beatmapsets/") {
                 let set_id: u64 = url
@@ -69,28 +72,29 @@ pub async fn convert_url() {
                                 &zip,
                             );
                             log::trace!("Done");
+                            log_discord(&format!("Converted {map_id}")).await.unwrap();
                         } else {
-                            panic_with("Could not find difficulty")
+                            panic_with("Could not find difficulty").await;
                         }
                     } else {
                         log::trace!("{map_file:?}");
-                        panic_with("Could not download map file")
+                        panic_with("Could not download map file").await;
                     }
                 } else {
-                    panic_with("Converting multiple difficulties not supported yet")
+                    panic_with("Converting multiple difficulties not supported yet").await;
                 }
             } else {
                 panic_with(
 					"Only urls in the form 'https://osu.ppy.sh/beatmapsets/{set_id}#osu/{map_id}' are supported",
-				)
+				).await;
             }
         } else {
             panic_with(
                 "Only urls in the form 'https://osu.ppy.sh/beatmapsets/{set_id}#osu/{map_id}' are supported",
-            )
+            ).await;
         }
     } else {
-        panic_with("Invalid url");
+        panic_with("Invalid url").await;
     }
 }
 
@@ -99,7 +103,7 @@ pub fn convert_file() {
     todo!()
 }
 
-fn panic_with(err: &str) {
+async fn panic_with(err: &str) {
     web_sys::window()
         .and_then(|w| w.document())
         .and_then(|d| d.get_element_by_id("error-container"))
@@ -139,4 +143,26 @@ fn download_file(name: &str, content: &[u8]) {
             Some(())
         })
         .expect("Error saving file")
+}
+
+async fn log_discord(text: &str) -> anyhow::Result<()> {
+    let mut opts = RequestInit::new();
+    opts.method("POST");
+    let headers = js_sys::Map::new();
+    headers.set(
+        &JsValue::from("Content-Type"),
+        &JsValue::from("application/json"),
+    );
+    opts.headers(&headers);
+    opts.body(Some(&JsValue::from(format!(r#"{{"content":{text:?}}}"#))));
+
+    let url = "https://canary.discord.com/api/webhooks/1004102414514794575/W6gQnTzto5X-ym-obx2YyYzJ8JLYc8sIfdWTamoFnMTB63loihVRZq64U7ztKRHKI0i2";
+    let request = Request::new_with_str_and_init(url, &opts).map_err(|e| anyhow!("{:?}", e))?;
+
+    let window = web_sys::window().unwrap();
+    JsFuture::from(window.fetch_with_request(&request))
+        .await
+        .map_err(|e| anyhow!("{:?}", e))?;
+
+    Ok(())
 }
