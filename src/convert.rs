@@ -1,20 +1,40 @@
 use osuparse::HitObject;
+use std::fmt::Write as _;
 use te::TimingPoint;
 
 use crate::{osu, te};
 
-pub fn convert(osu_map: osu::Map) -> te::Map {
+#[derive(Debug)]
+pub enum SpinnerBehaviour {
+    Ignore,
+    Both,
+    Current,
+}
+
+pub fn convert(
+    osu_map: &osu::Map,
+    slider_beat_limit: f32,
+    reverse_hitsound_mask: i32,
+    crop_thumb: bool,
+    spinner_behaviour: SpinnerBehaviour,
+) -> te::Map {
+    log::trace!(
+        "Converting with args: slider_beat_limit={}, reverse_hitsound_mask={:b}, crop_thumb={}, spinner_behaviour={:?}",
+        slider_beat_limit, reverse_hitsound_mask, crop_thumb, spinner_behaviour
+    );
+
     let bpm = osu_map.find_most_used_bpm();
 
-    let slider_limit = 0.5;
-    let reverse_hitsound_mask = 0b1110;
-
-    let thumb = osu_map.thumb.clone().crop(
-        (osu_map.thumb.width() - osu_map.thumb.height()) / 2,
-        0,
-        osu_map.thumb.height(),
-        osu_map.thumb.height(),
-    );
+    let thumb = if crop_thumb {
+        osu_map.thumb.clone().crop(
+            (osu_map.thumb.width() - osu_map.thumb.height()) / 2,
+            0,
+            osu_map.thumb.height(),
+            osu_map.thumb.height(),
+        )
+    } else {
+        osu_map.thumb.clone()
+    };
     let kiai = osu_map
         .find_kiai()
         .iter()
@@ -41,7 +61,8 @@ pub fn convert(osu_map: osu::Map) -> te::Map {
     let mut left_notes = String::new();
     let mut right_notes = String::new();
     let mut left = true;
-    for o in osu_map.data.hit_objects {
+    for o in &osu_map.data.hit_objects {
+        // Switch sides when new combo
         if match &o {
             HitObject::HitCircle(o) => o.new_combo,
             HitObject::Slider(o) => o.new_combo,
@@ -50,23 +71,25 @@ pub fn convert(osu_map: osu::Map) -> te::Map {
         } {
             left = !left;
         }
-
         let current_side = if left {
             &mut left_notes
         } else {
             &mut right_notes
         };
 
+        // Convert and write object
         match o {
             // a:b:c
             // a time
             // b type: 0: Normal, 1: Reverse, 2: Hold Start, 3: Hold End
             // c angle?
             HitObject::HitCircle(o) => {
-                if o.hitsound & reverse_hitsound_mask == reverse_hitsound_mask {
-                    current_side.push_str(&format!("{}:1:0|", o.time));
+                if o.hitsound & reverse_hitsound_mask == reverse_hitsound_mask
+                    && reverse_hitsound_mask != 0
+                {
+                    write!(current_side, "{}:1:0|", o.time).unwrap();
                 } else {
-                    current_side.push_str(&format!("{}:0:0|", o.time));
+                    write!(current_side, "{}:0:0|", o.time).unwrap();
                 }
             }
             HitObject::Slider(o) => {
@@ -90,27 +113,35 @@ pub fn convert(osu_map: osu::Map) -> te::Map {
                     .last()
                     .unwrap_or(1.);
 
-                let slider_frac = o.pixel_length
+                let slider_beat_time = o.pixel_length
                     / (osu_map.data.difficulty.slider_multiplier * 100. * slider_velocity);
 
                 // If slider is too short replace with normal note
-                if slider_frac > slider_limit + 0.001 {
-                    let slider_time = (slider_frac * beat_length) as i32;
-                    current_side.push_str(&format!(
+                if slider_beat_time > slider_beat_limit + 0.0001 {
+                    let slider_time = (slider_beat_time * beat_length) as i32;
+                    write!(
+                        current_side,
                         "{}:2:0|{}:3:0|",
                         o.time,
                         o.time + slider_time * o.repeat
-                    ));
+                    )
+                    .unwrap();
                 } else {
-                    current_side.push_str(&format!("{}:0:0|", o.time));
+                    write!(current_side, "{}:0:0|", o.time).unwrap();
                 }
             }
-            HitObject::Spinner(o) => {
-                left_notes.push_str(&format!("{}:2:0|{}:3:0|", o.time, o.end_time));
-                right_notes.push_str(&format!("{}:2:0|{}:3:0|", o.time, o.end_time));
-            }
+            HitObject::Spinner(o) => match spinner_behaviour {
+                SpinnerBehaviour::Ignore => {}
+                SpinnerBehaviour::Both => {
+                    write!(left_notes, "{}:2:0|{}:3:0|", o.time, o.end_time).unwrap();
+                    write!(right_notes, "{}:2:0|{}:3:0|", o.time, o.end_time).unwrap();
+                }
+                SpinnerBehaviour::Current => {
+                    write!(current_side, "{}:2:0|{}:3:0|", o.time, o.end_time).unwrap();
+                }
+            },
             HitObject::HoldNote(o) => {
-                current_side.push_str(&format!("{}:2:0|{}:3:0|", o.time, o.end_time));
+                write!(current_side, "{}:2:0|{}:3:0|", o.time, o.end_time).unwrap();
             }
         }
     }
@@ -119,13 +150,13 @@ pub fn convert(osu_map: osu::Map) -> te::Map {
 
     let te_map = te::Map {
         data: te::MapData {
-            mapper_name: osu_map.data.metadata.creator,
-            audio_file_name: osu_map.data.general.audio_filename,
+            mapper_name: osu_map.data.metadata.creator.clone(),
+            audio_file_name: osu_map.data.general.audio_filename.clone(),
             thumbnail_file_name: "thumb.png".to_string(),
             song_file_name: format!("{}.song", osu_map.data.metadata.title),
-            display_name: osu_map.data.metadata.title,
-            artist: osu_map.data.metadata.artist,
-            difficulty_name: osu_map.data.metadata.version,
+            display_name: osu_map.data.metadata.title.clone(),
+            artist: osu_map.data.metadata.artist.clone(),
+            difficulty_name: osu_map.data.metadata.version.clone(),
             preview_time_seconds: osu_map.data.general.preview_time as f64 / 1000.,
             bpm,
             difficulty_settings: te::DifficultySettings {
@@ -142,7 +173,7 @@ pub fn convert(osu_map: osu::Map) -> te::Map {
             breaks: Vec::new(),
             additional_difficulties: Vec::new(),
         },
-        audio: osu_map.audio,
+        audio: osu_map.audio.clone(),
         thumb,
     };
     te_map

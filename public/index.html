@@ -1,113 +1,163 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <script type="module">
-      import init, { run, convert_url, convert_file } from './pkg/osu_to_te.js'
-      window.convert_url = convert_url
-      window.convert_file = convert_file
-      init().then(() => {
-        console.log('WASM Loaded')
-        run()
-      })
-    </script>
 
-    <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
-    <link rel="stylesheet" href="/s/font/Aller.css" />
-    <link rel="stylesheet" href="/s/style.css" />
-    <title>osu!te</title>
-  </head>
-  <body>
-    <div class="center">
-      <div class="container">
-        <h1>osu!te</h1>
-        by
-        <a href="https://atilo.sh" target="_blank" rel="noopener">atilo</a>
-      </div>
-      <div class="action-container">
-        <div class="tab-select">
-          <div
-            class="button-tab button-tab-left {{if .Accuracy}} default {{end}}"
-            tab-target="0"
-          >
-            URL
-            <span class="underline"></span>
-          </div>
-          <div
-            class="button-tab button-tab-right {{if not .Accuracy}} default {{end}}"
-            tab-target="1"
-          >
-            File
-            <span class="underline"></span>
-          </div>
-        </div>
-        <div class="form" tab="0">
-          <input
-            id="osu_url"
-            type="url"
-            name="osu_url"
-            placeholder="https://osu.ppy.sh/beatmapsets/444335#osu/954692"
-            aria-label="osu file"
-          />
-          <button type="submit" onclick="convert_url()">Convert</button>
-        </div>
-        <div class="form" tab="1">
-          <input
-            id="osu_file"
-            type="file"
-            name="osu_file"
-            aria-label="osu file"
-            tab="1"
-            style="display: none;"
-          />
-          <button type="submit" onclick="convert_file()">Convert</button>
-        </div>
-      </div>
-      <div class="container" id="error-container" style="display: none;"></div>
-      <div class="container">
-        <h2>What is this?</h2>
-        <p>
-          osu!te is a tool for mappers of the rythm game
-          <a
-            href="https://store.steampowered.com/app/1926440/Twin_Edge/"
-            target="_blank"
-          >
-            Twin Edge
-          </a>
-          for importing maps from
-          <a href="https://osu.ppy.sh" target="_blank">osu!</a>
-          because i felt like the game lacked content.
-          <br />
-          Generated maps could also be used as a base for custom ones to get
-          started faster.
-        </p>
-        <br />
-        <p>
-          To import a map into Twin Edge just extract the zip file into a folder
-          in
-          <br />
-          "C:\Users\[username]\AppData\LocalLow\Arcy\TwinEdge\CustomSongs"
-        </p>
-        <br />
-        <b>
-          Please remember to credit the original creators of a map if you decide
-          to publish a converted map on the Steam workshop.
-        </b>
-        <br />
-        <br />
-        <p>The file section isn't functional yet.</p>
-        <br />
-        <p>
-          If you have any suggestions or questions feel free to ping me on the
-          <a href="https://discord.gg/cgzCKPtKey" target="_blank">
-            Twin Edge discord server
-          </a>
-          or dm me: Atilo#2416
-        </p>
-      </div>
-    </div>
-  </body>
-  <script src="/s/main.js"></script>
+<head>
+	<meta charset="UTF-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<script type="module">
+		import init, { run, convert_url, convert_file } from './pkg/osu_to_te.js'
+		window.convert_url = convert_url
+		window.convert_file = convert_file
+		init().then(() => {
+			console.log('WASM Loaded')
+			run()
+		})
+	</script>
+	<script src=https://kit.fontawesome.com/700e627529.js crossorigin=anonymous async></script>
+
+	<link rel="icon" href="data:;base64,iVBORw0KGgo=" />
+	<link rel="stylesheet" href="/s/font/Aller.css" />
+	<link rel="stylesheet" href="/s/style.css" />
+	<title>osu!te</title>
+</head>
+
+<body>
+	<div class="center">
+		<div class="container">
+			<h1>osu!te</h1>
+			by
+			<a href="https://atilo.sh" target="_blank" rel="noopener">atilo</a>
+		</div>
+		<div class="action-container">
+			<div class="tab-select">
+				<div class="button-tab button-tab-left {{if .Accuracy}} default {{end}}" tab-target="0">
+					URL
+					<span class="underline"></span>
+				</div>
+				<div class="button-tab button-tab-right {{if not .Accuracy}} default {{end}}" tab-target="1">
+					File
+					<span class="underline"></span>
+				</div>
+			</div>
+			<div class="form" tab="0">
+				<input id="osu_url" type="url" class="strechh" placeholder="https://osu.ppy.sh/beatmapsets/444335#osu/954692" aria-label="osu map url" />
+
+				<b>Slider limit:</b>
+				<input id="slider_beat_limit" type="number" placeholder="Beats" value="0.5" style="width:80px; text-align: left; padding-left: 5px;" />
+				<br />
+
+				<b>Spinner Behaviour:</b>
+				<div class="select-wrapper fas fa-chevron-down">
+					<select id="spinner_behaviour">
+						<option value="ignore">Ignore</option>
+						<option value="current">Slider on current</option>
+						<option value="both" selected="selected">Slider on both</option>
+					</select>
+				</div>
+				<br />
+
+				<b>Crop thumbnail to square:</b>
+				<label for="crop_thumb">
+					<input id="crop_thumb" type="checkbox" checked />
+					<span class="checkmark"></span>
+				</label>
+				<br />
+
+				<b>Reverse Mask:</b>
+				<br />
+				Normal
+				<label for="mask_normal">
+					<input id="mask_normal" type="checkbox" />
+					<span class="checkmark"></span>
+				</label>
+				Whistle
+				<label for="mask_whistle">
+					<input id="mask_whistle" type="checkbox" checked />
+					<span class="checkmark"></span>
+				</label>
+				Finish
+				<label for="mask_finish">
+					<input id="mask_finish" type="checkbox" checked />
+					<span class="checkmark"></span>
+				</label>
+				Clap
+				<label for="mask_clap">
+					<input id="mask_clap" type="checkbox" checked />
+					<span class="checkmark"></span>
+				</label>
+
+				<br />
+				<button type="submit" onclick="convert_url()">Convert</button>
+			</div>
+			<div class="form" tab="1">
+				<input id="osu_file" type="file" aria-label="osu file" tab="1" style="display: none;" />
+				<button type="submit" onclick="convert_file()">Convert</button>
+			</div>
+		</div>
+		<div class="container" id="error-container" style="display: none;"></div>
+		<div class="container">
+			<h2>What is this?</h2>
+			<p>
+				osu!te is a tool for mappers of the rythm game
+				<a href="https://store.steampowered.com/app/1926440/Twin_Edge/" target="_blank">
+					Twin Edge
+				</a>
+				for importing maps from
+				<a href="https://osu.ppy.sh" target="_blank">osu!</a>
+				because i felt like the game lacked content.
+				<br />
+				Generated maps could also be used as a base for custom ones to get
+				started faster.
+			</p>
+			<br />
+			<p>
+				To import a map into Twin Edge just extract the zip file into a folder
+				in
+				<br />
+				"C:\Users\[username]\AppData\LocalLow\Arcy\TwinEdge\CustomSongs"
+			</p>
+			<br />
+			<b>
+				Please remember to credit the original creators of a map if you decide
+				to publish a converted map on the Steam workshop.
+			</b>
+			<br />
+			<br />
+			<p>The file section isn't functional yet.</p>
+			<br />
+			<p>
+				If you have any suggestions or questions feel free to ping me on the
+				<a href="https://discord.gg/cgzCKPtKey" target="_blank">
+					Twin Edge discord server
+				</a>
+				or dm me: Atilo#2416
+			</p>
+			<br />
+			<h2>What are the parameters for?</h2>
+			<h4>URL</h4>
+			The url of the osu map you want to convert.
+			<h4>Slider limit</h4>
+			Really short sliders can be hard to hit in Twin Edge.
+			Therefore this tool converts all sliders that are shorter than the specified amount of beats
+			(default is half a beat) to normal notes. Set this to 0 to disable.
+			<h4>Crop thumbnail to square</h4>
+			Osu backgrounds are usually 16:9 but Twin Edge uses square thumbnails.
+			Enable this to crop off the sides of the background so it's a square.
+			<h4>Reverse Mask</h4>
+			When any of these flags are selected, reverse notes are inserted instead of notes with the specified hitsound flags.
+			These flags are the same ones used here:
+			<br />
+			<picture>
+				<!-- <source srcset="/s/hitsounds.webp" type="image/webp"> -->
+				<source srcset="/s/hitsounds.jpg" type="image/jpeg">
+				<img height="300px" width="auto" src="/s/hitsounds.jpg" alt="Hitsounds">
+			</picture>
+			<br />
+			Normal is none of them.
+		</div>
+	</div>
+</body>
+<script src="/s/main.js"></script>
+
 </html>

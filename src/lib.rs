@@ -7,7 +7,9 @@ use std::str::FromStr;
 use anyhow::anyhow;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{HtmlElement, HtmlInputElement, Request, RequestInit};
+use web_sys::{HtmlElement, HtmlInputElement, HtmlSelectElement, Request, RequestInit};
+
+use crate::convert::SpinnerBehaviour;
 
 #[wasm_bindgen]
 pub fn run() {
@@ -20,6 +22,7 @@ pub fn run() {
 pub async fn convert_url() {
     hide_error();
 
+    // Read inputs
     let doc = web_sys::window()
         .and_then(|w| w.document())
         .expect("Error getting document");
@@ -30,76 +33,131 @@ pub async fn convert_url() {
         .value();
     let url = url::Url::from_str(&url_str);
 
-    if let Ok(url) = url {
-        log::info!("Converting url {url}");
-        show_message(&format!("Converting url {url}"));
-        log_discord(&format!("Converting url {url}")).await.unwrap();
-        if let Some(domain) = url.domain() {
-            if domain == "osu.ppy.sh" && url.path().starts_with("/beatmapsets/") {
-                let set_id: u64 = url
-                    .path_segments()
-                    .unwrap()
-                    .last()
-                    .unwrap()
-                    .parse()
-                    .unwrap();
-                log::trace!("Beatmap set {set_id}");
+    let slider_beat_limit: f32 = doc
+        .get_element_by_id("slider_beat_limit")
+        .and_then(|e| e.dyn_into::<HtmlInputElement>().ok())
+        .expect("Error getting slider limit")
+        .value()
+        .parse()
+        .unwrap();
+    let crop_thumb: bool = doc
+        .get_element_by_id("crop_thumb")
+        .and_then(|e| e.dyn_into::<HtmlInputElement>().ok())
+        .expect("Error getting crop toggle")
+        .checked();
+    let spinner_behaviour: SpinnerBehaviour = match doc
+        .get_element_by_id("spinner_behaviour")
+        .and_then(|e| e.dyn_into::<HtmlSelectElement>().ok())
+        .expect("Error getting spinner behaviour")
+        .value()
+        .as_str()
+    {
+        "ignore" => SpinnerBehaviour::Ignore,
+        "current" => SpinnerBehaviour::Current,
+        _ => SpinnerBehaviour::Both,
+    };
 
-                let map_id: Option<u64> = url
-                    .fragment()
-                    .and_then(|f| f.split('/').last())
-                    .and_then(|s| s.parse().ok());
-                if let Some(map_id) = map_id {
-                    log::trace!("Difficulty {map_id}");
+    let mask_normal: bool = doc
+        .get_element_by_id("mask_normal")
+        .and_then(|e| e.dyn_into::<HtmlInputElement>().ok())
+        .expect("Error getting normal mask")
+        .checked();
+    let mask_whistle: bool = doc
+        .get_element_by_id("mask_whistle")
+        .and_then(|e| e.dyn_into::<HtmlInputElement>().ok())
+        .expect("Error getting whistle mask")
+        .checked();
+    let mask_finish: bool = doc
+        .get_element_by_id("mask_finish")
+        .and_then(|e| e.dyn_into::<HtmlInputElement>().ok())
+        .expect("Error getting finish mask")
+        .checked();
+    let mask_clap: bool = doc
+        .get_element_by_id("mask_clap")
+        .and_then(|e| e.dyn_into::<HtmlInputElement>().ok())
+        .expect("Error getting clap mask")
+        .checked();
 
-                    show_message("Downloading...");
-                    let map_file = osu::download(set_id).await;
-                    if let Ok(map_file) = map_file {
-                        let diff = map_file
-                            .into_iter()
-                            .find(|m| m.data.metadata.beatmap_id == map_id as i32);
-                        if let Some(diff) = diff {
-                            log::trace!("Converting...");
-                            show_message("Converting...");
-                            let te_map = convert::convert(diff);
-                            log::trace!("Generating zip...");
-                            show_message("Generating zip...");
-                            let zip = te_map.as_zip().unwrap();
-                            log::trace!("Saving...");
-                            download_file(
-                                &format!(
-                                    "{} {} ({}).zip",
-                                    te_map.data.artist,
-                                    te_map.data.display_name,
-                                    te_map.data.mapper_name
-                                ),
-                                &zip,
-                            );
-                            log::trace!("Done");
-                            hide_error();
-                            log_discord(&format!("Converted {map_id}")).await.unwrap();
-                        } else {
-                            panic_with("Could not find difficulty").await;
-                        }
-                    } else {
-                        log::trace!("{map_file:?}");
-                        panic_with("Could not download map file").await;
-                    }
-                } else {
-                    panic_with("Converting multiple difficulties not supported yet").await;
-                }
-            } else {
-                panic_with(
-					"Only urls in the form 'https://osu.ppy.sh/beatmapsets/{set_id}#osu/{map_id}' are supported",
-				).await;
-            }
+    let mut reverse_hitsound_mask = 0;
+    if mask_normal {
+        reverse_hitsound_mask |= 1 << 0;
+    }
+    if mask_whistle {
+        reverse_hitsound_mask |= 1 << 1;
+    }
+    if mask_finish {
+        reverse_hitsound_mask |= 1 << 2;
+    }
+    if mask_clap {
+        reverse_hitsound_mask |= 1 << 3;
+    }
+
+    // Start conversion
+    if url.is_err() {
+        panic_with("Invalid url").await;
+    }
+    let url = url.unwrap();
+    log::trace!("Converting url {url}");
+    show_message(&format!("Converting url {url}"));
+    log_discord(&format!("Converting url {url}")).await.unwrap();
+
+    if url.domain().is_none()
+        || url.domain().unwrap_or("") != "osu.ppy.sh"
+        || !url.path().starts_with("/beatmapsets/")
+    {
+        panic_with("Only urls in the form 'https://osu.ppy.sh/beatmapsets/{set_id}#osu/{map_id}' are supported").await;
+    }
+
+    let set_id: u64 = url
+        .path_segments()
+        .unwrap()
+        .last()
+        .unwrap()
+        .parse()
+        .unwrap();
+    log::trace!("Beatmap set {set_id}");
+
+    let map_id: Option<u64> = url
+        .fragment()
+        .and_then(|f| f.split('/').last())
+        .and_then(|s| s.parse().ok());
+    if let Some(map_id) = map_id {
+        log::trace!("Difficulty {map_id}");
+
+        show_message("Downloading...");
+        let map_file = osu::download(set_id).await;
+        if let Ok(map_file) = map_file {
+            let diff = map_file
+                .into_iter()
+                .find(|m| m.data.metadata.beatmap_id == map_id as i32)
+                .unwrap();
+            show_message("Converting...");
+            let te_map = convert::convert(
+                &diff,
+                slider_beat_limit,
+                reverse_hitsound_mask,
+                crop_thumb,
+                spinner_behaviour,
+            );
+            show_message("Generating zip...");
+            let zip = te_map.as_zip().unwrap();
+            show_message("Saving...");
+            download_file(
+                &format!(
+                    "{} {} ({}).zip",
+                    te_map.data.artist, te_map.data.display_name, te_map.data.mapper_name
+                ),
+                &zip,
+            );
+            show_message("Done");
+            hide_error();
+            log_discord(&format!("Converted {map_id}")).await.unwrap();
         } else {
-            panic_with(
-                "Only urls in the form 'https://osu.ppy.sh/beatmapsets/{set_id}#osu/{map_id}' are supported",
-            ).await;
+            log::trace!("{map_file:?}");
+            panic_with("Could not download map file").await;
         }
     } else {
-        panic_with("Invalid url").await;
+        panic_with("Converting multiple difficulties not supported yet").await;
     }
 }
 
@@ -134,6 +192,7 @@ fn hide_error() {
 }
 
 fn show_message(text: &str) {
+    log::trace!("{}", text);
     web_sys::window()
         .and_then(|w| w.document())
         .and_then(|d| d.get_element_by_id("error-container"))
